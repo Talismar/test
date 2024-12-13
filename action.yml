@@ -1,0 +1,10 @@
+name: "Python  Action Example"
+description: "A simple GitHub Action written in Python"
+inputs:
+  message:
+    description: "A mensagem para exibir"
+    required: true
+    default: "Olá, mundo!"
+runs:
+  using: "python"
+  main: "main.py"
