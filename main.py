@@ -74,65 +74,73 @@ api_client = asana.ApiClient(configuration)
 def run():
     with open("/github/workflow/event.json", "r") as file:
         event_data = json.load(file)
-        pprint(event_data, indent=2)
+        # pprint(event_data, indent=2)
 
-        # action = event_data["action"]
-        # commit_url = event_data["issue"]["_links"]["comments"]["href"]
-        # base_branch = event_data["issue"]["base"]["ref"]
+        action = event_data["action"]
+        title = ""
+        body = ""
+        commit_url = ""
 
+        if "issue" in event_data:
+            commit_url = event_data["issue"]["comments_url"]
+            title = event_data["issue"]["title"]
+            body = event_data["issue"]["body"]
+        else:
+            commit_url = event_data["pull_request"]["_links"]["comments"]["href"]
+            title: str = event_data["pull_request"]["title"]
+            body: str | None = event_data["pull_request"]["body"]
+            
+        # base_branch = event_data["pull_request"]["base"]["ref"]
         # pprint("Base branch: ", base_branch, action)
 
-        # if action == "opened":
-        #     pprint("Pull request opened")
+        if action == "opened":
+            pprint("Pull request opened")            
 
-        #     title: str = event_data["issue"].get("title")
-        #     body: str | None = event_data["issue"].get("body")
+            if title.startswith("Asana:"):
+                asana_task_name = title.split("Asana:")[1].strip()
+                asana_task = create_asana_task(
+                    api_client,
+                    ASANA_SECTION_DOING,
+                    ASANA_PROJECT_ID,
+                    ASANA_CUSTOM_FIELD_STATUS_ID,
+                    ASANA_CUSTOM_FIELD_STATUS_IN_PROGRESS_ID,
+                    asana_task_name,
+                    body,
+                )
 
-        #     if title.startswith("Asana:"):
-        #         asana_task_name = title.split("Asana:")[1].strip()
-        #         asana_task = create_asana_task(
-        #             api_client,
-        #             ASANA_SECTION_DOING,
-        #             ASANA_PROJECT_ID,
-        #             ASANA_CUSTOM_FIELD_STATUS_ID,
-        #             ASANA_CUSTOM_FIELD_STATUS_IN_PROGRESS_ID,
-        #             asana_task_name,
-        #             body,
-        #         )
+                data = {"body": "Asana Task ID: %s" % asana_task["gid"]}
 
-        #         data = {"body": "Asana Task ID: %s" % asana_task["gid"]}
+                response = requests.post(commit_url, json=data, headers=headers)
 
-        #         response = requests.post(commit_url, json=data, headers=headers)
+                if response.status_code == 201:
+                    print("Comment created successfully")
+                else:
+                    print(f"Failed to create comment: {response.status_code}")
 
-        #         if response.status_code == 201:
-        #             print("Comment created successfully")
-        #         else:
-        #             print(f"Failed to create comment: {response.status_code}")
+        elif action == "closed":
+            pprint("Pull request closed")
 
-        # elif action == "closed":
-        #     pprint("Pull request closed")
+            response = requests.get(commit_url, headers=headers)
+            if response.status_code == 200:
+                comments = response.json()
+                for comment in comments:
+                    if "Asana Task ID:" in comment["body"]:
+                        asana_task_id = (
+                            comment["body"].split("Asana Task ID:")[1].strip()
+                        )
 
-        #     response = requests.get(commit_url, headers=headers)
-        #     if response.status_code == 200:
-        #         comments = response.json()
-        #         for comment in comments:
-        #             if "Asana Task ID:" in comment["body"]:
-        #                 asana_task_id = (
-        #                     comment["body"].split("Asana Task ID:")[1].strip()
-        #                 )
-
-        #                 try:
-        #                     update_asana_task(
-        #                         api_client,
-        #                         asana_task_id,
-        #                         ASANA_CUSTOM_FIELD_STATUS_ID,
-        #                         ASANA_CUSTOM_FIELD_STATUS_RESOLVED_ID,
-        #                     )
-        #                 except ApiException as e:
-        #                     print(e)
-        #                 break
-        #     else:
-        #         pprint(f"Failed to fetch comments: {response.status_code}")
+                        try:
+                            update_asana_task(
+                                api_client,
+                                asana_task_id,
+                                ASANA_CUSTOM_FIELD_STATUS_ID,
+                                ASANA_CUSTOM_FIELD_STATUS_RESOLVED_ID,
+                            )
+                        except ApiException as e:
+                            print(e)
+                        break
+            else:
+                pprint(f"Failed to fetch comments: {response.status_code}")
 
 
 if __name__ == "__main__":
