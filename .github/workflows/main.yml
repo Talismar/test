@@ -13,7 +13,7 @@ jobs:
           contents: read
         steps:
             - uses: actions/checkout@v3
-            - uses: ./
+            - uses: Thalocan-TRI/integration-asana-action@v1
               with:
                 ASANA_WORKSPACE_ID: '1205703551806704'
                 ASANA_PROJECT_ID: '1205880144741880'
